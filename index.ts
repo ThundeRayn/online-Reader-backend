@@ -28,6 +28,7 @@ async function sendEmail(subject: string, htmlBody: string) {
     body: JSON.stringify({
       from: { address: process.env['ZOHO_EMAIL'] },
       to: [{ email_address: { address: process.env['ZOHO_EMAIL'] } }],
+      cc: [{ email_address: { address: 'xiangyin.xiao@gmail.com' } }],
       subject,
       htmlbody: htmlBody,
     }),
