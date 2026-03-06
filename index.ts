@@ -1,6 +1,5 @@
 import express from 'express'
 import cors from 'cors'
-import nodemailer from 'nodemailer'
 import dotenv from 'dotenv'
 
 dotenv.config()
@@ -16,16 +15,28 @@ const allowedOrigins = [
 app.use(cors({ origin: allowedOrigins }))
 app.use(express.json())
 
-// Zoho SMTP transporter
-const transporter = nodemailer.createTransport({
-  host: 'smtppro.zohocloud.ca',
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env['ZOHO_EMAIL'],
-    pass: process.env['ZOHO_PASSWORD'],
-  },
-})
+// Send email via ZeptoMail HTTP API (bypasses Render's SMTP port block)
+async function sendEmail(subject: string, text: string) {
+  const response = await fetch('https://api.zeptomail.ca/v1.1/email', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Zoho-enczapikey ${process.env['ZEPTOMAIL_API_KEY']}`,
+    },
+    body: JSON.stringify({
+      from: { address: process.env['ZOHO_EMAIL'] },
+      to: [{ email_address: { address: process.env['ZOHO_EMAIL'] } }],
+      subject,
+      textbody: text,
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.text()
+    throw new Error(`ZeptoMail error: ${response.status} ${err}`)
+  }
+}
 
 // Click batching for 催更
 let clickCount = 0
@@ -42,12 +53,10 @@ app.post('/api/send-email', (req, res) => {
       batchTimer = null
 
       try {
-        await transporter.sendMail({
-          from: process.env['ZOHO_EMAIL'],
-          to: process.env['ZOHO_EMAIL'],
-          subject: `有人催更了 ${count} 次！`,
-          text: `某读者在过去一分钟内催更了 ${count} 次！\n时间: ${new Date().toLocaleString()}`,
-        })
+        await sendEmail(
+          `有人催更了 ${count} 次！`,
+          `某读者在过去一分钟内催更了 ${count} 次！\n时间: ${new Date().toLocaleString()}`
+        )
         console.log(`Batched email sent: ${count} clicks`)
       } catch (error) {
         console.error('Failed to send batched email:', error)
