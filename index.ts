@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import { cueNotificationTemplate } from './templates/cue-notification.js'
 
 dotenv.config()
 
@@ -16,7 +17,7 @@ app.use(cors({ origin: allowedOrigins }))
 app.use(express.json())
 
 // Send email via ZeptoMail HTTP API (bypasses Render's SMTP port block)
-async function sendEmail(subject: string, text: string) {
+async function sendEmail(subject: string, htmlBody: string) {
   const response = await fetch('https://api.zeptomail.ca/v1.1/email', {
     method: 'POST',
     headers: {
@@ -28,7 +29,7 @@ async function sendEmail(subject: string, text: string) {
       from: { address: process.env['ZOHO_EMAIL'] },
       to: [{ email_address: { address: process.env['ZOHO_EMAIL'] } }],
       subject,
-      textbody: text,
+      htmlbody: htmlBody,
     }),
   })
 
@@ -53,9 +54,10 @@ app.post('/api/send-email', (req, res) => {
       batchTimer = null
 
       try {
+        const time = new Date().toLocaleString()
         await sendEmail(
           `有人催更了 ${count} 次！`,
-          `某读者在过去一分钟内催更了 ${count} 次！\n时间: ${new Date().toLocaleString()}`
+          cueNotificationTemplate(count, time)
         )
         console.log(`Batched email sent: ${count} clicks`)
       } catch (error) {
